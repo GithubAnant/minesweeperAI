@@ -3,23 +3,22 @@ name: Build Executables
 on:
   push:
     tags:
-      - 'v*'  # Trigger on version tags like v1.0.0
-  workflow_dispatch:  # Allow manual trigger
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false  # Don't cancel other builds if one fails
       matrix:
         include:
           - os: windows-latest
-            name: minesweeper-windows.exe
-          - os: macos-13  # Intel Mac
+            name: minesweeper-windows
+          - os: macos-13
             name: minesweeper-mac-intel
-            arch: x86_64
-          - os: macos-latest  # Silicon Mac
+          - os: macos-latest
             name: minesweeper-mac-silicon
-            arch: arm64
     
     steps:
     - name: Checkout code
@@ -30,22 +29,19 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Install PyInstaller
-      run: pip install pyinstaller
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
     
     - name: Build executable
       run: |
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          pyinstaller --onefile --windowed --name "${{ matrix.name }}" runner.py
-        else
-          pyinstaller --onefile --windowed --target-arch ${{ matrix.arch }} --name "${{ matrix.name }}" runner.py
-        fi
-      shell: bash
+        pyinstaller --onefile --windowed --name "${{ matrix.name }}" runner.py
     
     - name: Upload to Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
-        files: dist/${{ matrix.name }}*
+        files: dist/*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
