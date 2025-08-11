@@ -1,129 +1,48 @@
-name: Build and Release
+name: Build Executables
 
 on:
   push:
     tags:
-      - 'v*'  # Triggers on version tags like v1.0.0
-  workflow_dispatch:  # Allows manual triggering
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - os: macos-13  # Intel Mac runners
-            arch: x64
-            name: intel-mac
-            python-version: '3.11'
-          - os: macos-14  # M1/M2/M3 runners (ARM64 only)
-            arch: arm64
-            name: silicon-mac
-            python-version: '3.11'
+          - os: macos-14
+            name: mac
           - os: windows-latest
-            arch: x64
             name: windows
-            python-version: '3.11'
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: '3.11'
 
-    - name: Install system dependencies (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        # Install dependencies for pygame
-        brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf portaudio
-
-    - name: Install Python dependencies
+    - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pygame pyinstaller setuptools wheel
+        pip install pygame pyinstaller
 
-    - name: Test pygame installation
+    - name: Build executable
       run: |
-        python -c "import pygame; print('pygame version:', pygame.version.ver)"
+        pyinstaller --onefile --add-data "assets${SEPARATOR}assets" --name "Minesweeper-${{ matrix.name }}" runner.py
+      env:
+        SEPARATOR: ${{ runner.os == 'Windows' && ';' || ':' }}
 
-    - name: Verify assets directory structure
-      run: |
-        ls -la
-        if [ -d "assets" ]; then
-          echo "Assets directory found"
-          find assets -type f
-        else
-          echo "Warning: assets directory not found"
-        fi
-      shell: bash
-
-    - name: Create executable with PyInstaller (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        python -m PyInstaller --onefile --windowed \
-          --add-data "assets:assets" \
-          --name "Minesweeper-${{ matrix.name }}" \
-          --collect-all pygame \
-          runner.py
-
-    - name: Create executable with PyInstaller (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        python -m PyInstaller --onefile --windowed --add-data "assets;assets" --name "Minesweeper-${{ matrix.name }}" --collect-all pygame runner.py
-
-    - name: Create macOS app bundle (macOS only)
-      if: runner.os == 'macOS'
-      run: |
-        # Create proper macOS app structure
-        mkdir -p "Minesweeper-${{ matrix.name }}.app/Contents/MacOS"
-        mkdir -p "Minesweeper-${{ matrix.name }}.app/Contents/Resources"
-        
-        # Copy executable
-        cp "dist/Minesweeper-${{ matrix.name }}" "Minesweeper-${{ matrix.name }}.app/Contents/MacOS/"
-        
-        # Create Info.plist
-        cat > "Minesweeper-${{ matrix.name }}.app/Contents/Info.plist" << EOF
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>CFBundleExecutable</key>
-            <string>Minesweeper-${{ matrix.name }}</string>
-            <key>CFBundleIdentifier</key>
-            <string>com.minesweeper.app</string>
-            <key>CFBundleName</key>
-            <string>Minesweeper</string>
-            <key>CFBundleVersion</key>
-            <string>1.0</string>
-            <key>CFBundleShortVersionString</key>
-            <string>1.0</string>
-            <key>CFBundlePackageType</key>
-            <string>APPL</string>
-        </dict>
-        </plist>
-        EOF
-
-    - name: Package for distribution (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        # Create DMG or ZIP for distribution
-        zip -r "Minesweeper-${{ matrix.name }}.zip" "Minesweeper-${{ matrix.name }}.app"
-
-    - name: Package for distribution (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        # Create ZIP for Windows
-        Compress-Archive -Path "dist/Minesweeper-${{ matrix.name }}.exe" -DestinationPath "Minesweeper-${{ matrix.name }}.zip"
-
-    - name: Upload artifacts
+    - name: Upload executable
       uses: actions/upload-artifact@v4
       with:
-        name: Minesweeper-${{ matrix.name }}
+        name: ${{ matrix.name }}
         path: |
-          Minesweeper-${{ matrix.name }}.zip
-          dist/
+          dist/Minesweeper-${{ matrix.name }}*
 
   release:
     needs: build
@@ -131,68 +50,22 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     
     steps:
-    - uses: actions/checkout@v4
-
     - name: Download all artifacts
       uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-
-    - name: Display structure of downloaded files
-      run: ls -R artifacts
-
+      
     - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref_name }}
-        release_name: Minesweeper ${{ github.ref_name }}
+        files: |
+          mac/Minesweeper-mac
+          windows/Minesweeper-windows.exe
         body: |
-          ## Minesweeper Release ${{ github.ref_name }}
+          ## Simple Minesweeper Executables
           
-          ### Downloads:
-          - **Intel Mac**: Minesweeper-intel-mac.zip
-          - **Apple Silicon Mac (M1/M2/M3)**: Minesweeper-silicon-mac.zip  
-          - **Windows**: Minesweeper-windows.zip
+          Just download and run:
+          - **Mac (Apple Silicon)**: `Minesweeper-mac`
+          - **Windows**: `Minesweeper-windows.exe`
           
-          ### Installation:
-          - **macOS**: Download the appropriate zip file, extract, and run the .app file
-          - **Windows**: Download the zip file, extract, and run the .exe file
-          
-          ### System Requirements:
-          - macOS 10.15+ or Windows 10+
-          - No additional dependencies required
-        draft: false
-        prerelease: false
-
-    - name: Upload Intel Mac Release Asset
-      uses: actions/upload-release-asset@v1
+          No installation needed!
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: artifacts/Minesweeper-intel-mac/Minesweeper-intel-mac.zip
-        asset_name: Minesweeper-intel-mac.zip
-        asset_content_type: application/zip
-
-    - name: Upload Silicon Mac Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: artifacts/Minesweeper-silicon-mac/Minesweeper-silicon-mac.zip
-        asset_name: Minesweeper-silicon-mac.zip
-        asset_content_type: application/zip
-
-    - name: Upload Windows Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: artifacts/Minesweeper-windows/Minesweeper-windows.zip
-        asset_name: Minesweeper-windows.zip
-        asset_content_type: application/zip
