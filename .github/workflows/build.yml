@@ -7,41 +7,68 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            name: minesweeper-windows
-          - os: macos-13
-            name: minesweeper-mac-intel
-          - os: macos-latest
-            name: minesweeper-mac-silicon
-    
+  build-windows:
+    runs-on: windows-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
       with:
-        python-version: '3.11'  # Stable version for PyInstaller
-    
+        python-version: '3.11'
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pygame pyinstaller
-    
-    - name: Build executable
+        pip install pygame==2.5.2 pyinstaller==6.1.0
+    - name: Build
       run: |
-        pyinstaller --onefile --windowed --name "${{ matrix.name }}" runner.py
-    
-    - name: Upload to Release
+        pyinstaller --onefile --windowed --name minesweeper-windows runner.py
+    - name: Upload
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
-        files: dist/*
+        files: dist/minesweeper-windows.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-mac-intel:
+    runs-on: macos-13
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pygame==2.5.2 pyinstaller==6.1.0
+    - name: Build
+      run: |
+        pyinstaller --onefile --windowed --name minesweeper-mac-intel runner.py
+    - name: Upload
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/minesweeper-mac-intel
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-mac-silicon:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pygame==2.5.2 pyinstaller==6.1.0
+    - name: Build
+      run: |
+        pyinstaller --onefile --windowed --name minesweeper-mac-silicon runner.py
+    - name: Upload
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/minesweeper-mac-silicon
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
