@@ -1,84 +1,194 @@
-name: Build Executables
+name: Build and Release
 
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - 'v*'  # Triggers on version tags like v1.0.0
+  workflow_dispatch:  # Allows manual triggering
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-      
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pygame pyinstaller
-        
-    - name: Build executable
-      run: |
-        pyinstaller --onefile --noconsole runner.py --name minesweeper-windows
-        
-    - name: Upload artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: windows-exe
-        path: dist/minesweeper-windows.exe
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            arch: x64
+            name: intel-mac
+            python-version: '3.13'
+          - os: macos-14  # M1/M2/M3 runners
+            arch: arm64
+            name: silicon-mac
+            python-version: '3.13'
+          - os: windows-latest
+            arch: x64
+            name: windows
+            python-version: '3.13'
 
-  build-macos:
-    runs-on: macos-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-      
-    - name: Setup Python
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
-        
-    - name: Install dependencies
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install system dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        # Install dependencies for pygame
+        brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf
+
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pygame pyinstaller
-        
-    - name: Build executable
+
+    - name: Verify assets directory structure
       run: |
-        pyinstaller --onefile --noconsole runner.py --name minesweeper-mac
+        ls -la
+        if [ -d "assets" ]; then
+          echo "Assets directory found"
+          find assets -type f
+        else
+          echo "Warning: assets directory not found"
+        fi
+      shell: bash
+
+    - name: Create executable with PyInstaller (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        pyinstaller --onefile --windowed \
+          --add-data "assets:assets" \
+          --name "Minesweeper-${{ matrix.name }}" \
+          --icon "assets/images/mine.png" \
+          runner.py
+
+    - name: Create executable with PyInstaller (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        pyinstaller --onefile --windowed --add-data "assets;assets" --name "Minesweeper-${{ matrix.name }}" --icon "assets/images/mine.png" runner.py
+
+    - name: Create macOS app bundle (macOS only)
+      if: runner.os == 'macOS'
+      run: |
+        # Create proper macOS app structure
+        mkdir -p "Minesweeper-${{ matrix.name }}.app/Contents/MacOS"
+        mkdir -p "Minesweeper-${{ matrix.name }}.app/Contents/Resources"
         
-    - name: Upload artifact
-      uses: actions/upload-artifact@v3
+        # Copy executable
+        cp "dist/Minesweeper-${{ matrix.name }}" "Minesweeper-${{ matrix.name }}.app/Contents/MacOS/"
+        
+        # Create Info.plist
+        cat > "Minesweeper-${{ matrix.name }}.app/Contents/Info.plist" << EOF
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleExecutable</key>
+            <string>Minesweeper-${{ matrix.name }}</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.minesweeper.app</string>
+            <key>CFBundleName</key>
+            <string>Minesweeper</string>
+            <key>CFBundleVersion</key>
+            <string>1.0</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+        </dict>
+        </plist>
+        EOF
+
+    - name: Package for distribution (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        # Create DMG or ZIP for distribution
+        zip -r "Minesweeper-${{ matrix.name }}.zip" "Minesweeper-${{ matrix.name }}.app"
+
+    - name: Package for distribution (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        # Create ZIP for Windows
+        Compress-Archive -Path "dist/Minesweeper-${{ matrix.name }}.exe" -DestinationPath "Minesweeper-${{ matrix.name }}.zip"
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
       with:
-        name: mac-exe
-        path: dist/minesweeper-mac
+        name: Minesweeper-${{ matrix.name }}
+        path: |
+          Minesweeper-${{ matrix.name }}.zip
+          dist/
 
   release:
-    needs: [build-windows, build-macos]
+    needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    
     steps:
-    - name: Download Windows artifact
-      uses: actions/download-artifact@v3
+    - uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
       with:
-        name: windows-exe
-        
-    - name: Download Mac artifact
-      uses: actions/download-artifact@v3
-      with:
-        name: mac-exe
-        
+        path: artifacts
+
+    - name: Display structure of downloaded files
+      run: ls -R artifacts
+
     - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          minesweeper-windows.exe
-          minesweeper-mac
+      id: create_release
+      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: Minesweeper ${{ github.ref_name }}
+        body: |
+          ## Minesweeper Release ${{ github.ref_name }}
+          
+          ### Downloads:
+          - **Intel Mac**: Minesweeper-intel-mac.zip
+          - **Apple Silicon Mac (M1/M2/M3)**: Minesweeper-silicon-mac.zip  
+          - **Windows**: Minesweeper-windows.zip
+          
+          ### Installation:
+          - **macOS**: Download the appropriate zip file, extract, and run the .app file
+          - **Windows**: Download the zip file, extract, and run the .exe file
+          
+          ### System Requirements:
+          - macOS 10.15+ or Windows 10+
+          - No additional dependencies required
+        draft: false
+        prerelease: false
+
+    - name: Upload Intel Mac Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: artifacts/Minesweeper-intel-mac/Minesweeper-intel-mac.zip
+        asset_name: Minesweeper-intel-mac.zip
+        asset_content_type: application/zip
+
+    - name: Upload Silicon Mac Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: artifacts/Minesweeper-silicon-mac/Minesweeper-silicon-mac.zip
+        asset_name: Minesweeper-silicon-mac.zip
+        asset_content_type: application/zip
+
+    - name: Upload Windows Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: artifacts/Minesweeper-windows/Minesweeper-windows.zip
+        asset_name: Minesweeper-windows.zip
+        asset_content_type: application/zip
