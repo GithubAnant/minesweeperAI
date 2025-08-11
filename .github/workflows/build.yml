@@ -12,18 +12,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-13  # Intel Mac runners
             arch: x64
             name: intel-mac
-            python-version: '3.13'
-          - os: macos-14  # M1/M2/M3 runners
+            python-version: '3.11'
+          - os: macos-14  # M1/M2/M3 runners (ARM64 only)
             arch: arm64
             name: silicon-mac
-            python-version: '3.13'
+            python-version: '3.11'
           - os: windows-latest
             arch: x64
             name: windows
-            python-version: '3.13'
+            python-version: '3.11'
 
     steps:
     - uses: actions/checkout@v4
@@ -37,12 +37,16 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         # Install dependencies for pygame
-        brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf
+        brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf portaudio
 
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pygame pyinstaller
+        pip install pygame pyinstaller setuptools wheel
+
+    - name: Test pygame installation
+      run: |
+        python -c "import pygame; print('pygame version:', pygame.version.ver)"
 
     - name: Verify assets directory structure
       run: |
@@ -58,16 +62,16 @@ jobs:
     - name: Create executable with PyInstaller (macOS)
       if: runner.os == 'macOS'
       run: |
-        pyinstaller --onefile --windowed \
+        python -m PyInstaller --onefile --windowed \
           --add-data "assets:assets" \
           --name "Minesweeper-${{ matrix.name }}" \
-          --icon "assets/images/mine.png" \
+          --collect-all pygame \
           runner.py
 
     - name: Create executable with PyInstaller (Windows)
       if: runner.os == 'Windows'
       run: |
-        pyinstaller --onefile --windowed --add-data "assets;assets" --name "Minesweeper-${{ matrix.name }}" --icon "assets/images/mine.png" runner.py
+        python -m PyInstaller --onefile --windowed --add-data "assets;assets" --name "Minesweeper-${{ matrix.name }}" --collect-all pygame runner.py
 
     - name: Create macOS app bundle (macOS only)
       if: runner.os == 'macOS'
