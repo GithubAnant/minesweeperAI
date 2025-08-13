@@ -1,46 +1,46 @@
-# # 
+# 
 
-# name: Build macOS Executable
+name: Build macOS Executable
 
-# on:
-#   push:
-#     branches: [main, master]
-#   pull_request:
-#     branches: [main, master]
-#   workflow_dispatch:
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
 
-# jobs:
-#   build:
-#     runs-on: macos-latest
+jobs:
+  build:
+    runs-on: macos-latest
     
-#     steps:
-#     - uses: actions/checkout@v4
+    steps:
+    - uses: actions/checkout@v4
     
-#     - name: Setup Python
-#       uses: actions/setup-python@v4
-#       with:
-#         python-version: '3.11'
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
     
-#     - name: Install dependencies
-#       run: |
-#         pip install pygame pyinstaller
+    - name: Install dependencies
+      run: |
+        pip install pygame pyinstaller
     
-#     - name: Create assets
-#       run: |
-#         mkdir -p assets/fonts
-#         mkdir -p assets/images
-#         curl -o assets/fonts/OpenSans-Regular.ttf https://github.com/google/fonts/raw/main/apache/opensans/OpenSans-Regular.ttf
+    - name: Create assets
+      run: |
+        mkdir -p assets/fonts
+        mkdir -p assets/images
+        curl -o assets/fonts/OpenSans-Regular.ttf https://github.com/google/fonts/raw/main/apache/opensans/OpenSans-Regular.ttf
     
-#     - name: Create placeholder images
-#       run: |
-#         python -c "import pygame; pygame.init(); s=pygame.Surface((32,32)); s.fill((255,0,0)); pygame.image.save(s,'assets/images/flag.png'); s.fill((0,0,0)); pygame.image.save(s,'assets/images/mine.png')"
+    - name: Create placeholder images
+      run: |
+        python -c "import pygame; pygame.init(); s=pygame.Surface((32,32)); s.fill((255,0,0)); pygame.image.save(s,'assets/images/flag.png'); s.fill((0,0,0)); pygame.image.save(s,'assets/images/mine.png')"
     
-#     - name: Build app
-#       run: |
-#         pyinstaller --onefile --windowed --add-data "assets:assets" runner.py
+    - name: Build app
+      run: |
+        pyinstaller --onefile --windowed --add-data "assets:assets" runner.py
     
-#     - name: Upload artifact
-#       uses: actions/upload-artifact@v4
-#       with:
-#         name: Minesweeper-macos
-#         path: dist/*
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Minesweeper-macos
+        path: dist/*

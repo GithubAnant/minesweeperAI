@@ -1,18 +1,17 @@
-🧠 Minesweeper AI
-A simple AI that plays Minesweeper using logical inference and probability. Built for fun and experimentation with basic constraint satisfaction and game strategy.
+# Minesweeper AI
 
-⚙️ Features
-Plays standard Minesweeper grid
+A simple AI that plays Minesweeper using logical inference and probability.
 
-Uses basic logic to flag mines and uncover safe cells
+## Quick start
 
-Falls back to probability when unsure
+1. Open the Releases tab on the right hand side of this page.
+2. Choose the download for your operating system
+   1. Windows: `MinesweeperAI.exe`
+   2. macOS: `MinesweeperAI.dmg` or `.app`
+3. Download the file to a folder on your PC.
+4. In that folder, double click the file to run.
+5. That is it
 
-Configurable board size and mine count
+## Extra notes
 
-🛠️ How It Works
-Parses the board state.
-
-Applies deterministic rules (e.g., 1 revealed next to 1 covered = that one is a mine).
-
-If no moves are certain, calculates probabilities and picks the safest move.
+- macOS may show a security prompt. If it does, right click the app, choose Open, then Open again.
