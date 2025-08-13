@@ -1,5 +1,3 @@
-# 
-
 name: Build macOS Executable
 
 on:
@@ -12,35 +10,35 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install dependencies
-      run: |
-        pip install pygame pyinstaller
-    
-    - name: Create assets
-      run: |
-        mkdir -p assets/fonts
-        mkdir -p assets/images
-        python -c "import requests; open('assets/fonts/OpenSans-Regular.ttf','wb').write(requests.get('https://github.com/google/fonts/raw/main/apache/opensans/OpenSans-Regular.ttf').content)"
-    
-    - name: Create placeholder images
-      run: |
-        python -c "import pygame; pygame.init(); s=pygame.Surface((32,32)); s.fill((255,0,0)); pygame.image.save(s,'assets/images/flag.png'); s.fill((0,0,0)); pygame.image.save(s,'assets/images/mine.png')"
-    
-    - name: Build app
-      run: |
-        pyinstaller --onefile --windowed --add-data "assets:assets" runner.py
-    
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Minesweeper-macos
-        path: dist/*
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install pygame pyinstaller requests
+
+      - name: Create assets
+        run: |
+          mkdir -p assets/fonts
+          mkdir -p assets/images
+          python -c "import requests; open('assets/fonts/OpenSans-Regular.ttf','wb').write(requests.get('https://github.com/google/fonts/raw/main/apache/opensans/OpenSans-Regular.ttf').content)"
+
+      - name: Create placeholder images
+        run: |
+          python -c "import pygame; pygame.init(); s=pygame.Surface((32,32)); s.fill((255,0,0)); pygame.image.save(s,'assets/images/flag.png'); s.fill((0,0,0)); pygame.image.save(s,'assets/images/mine.png')"
+
+      - name: Build app
+        run: |
+          pyinstaller --onefile --windowed --add-data "assets:assets" runner.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Minesweeper-macos
+          path: dist/*
