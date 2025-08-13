@@ -29,7 +29,7 @@ jobs:
       run: |
         mkdir -p assets/fonts
         mkdir -p assets/images
-        curl -o assets/fonts/OpenSans-Regular.ttf https://github.com/google/fonts/raw/main/apache/opensans/OpenSans-Regular.ttf
+        python -c "import requests; open('assets/fonts/OpenSans-Regular.ttf','wb').write(requests.get('https://github.com/google/fonts/raw/main/apache/opensans/OpenSans-Regular.ttf').content)"
     
     - name: Create placeholder images
       run: |
