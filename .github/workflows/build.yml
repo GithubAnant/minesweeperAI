@@ -1,71 +1,118 @@
-name: Build Executables
+name: Build Windows Executable
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-14
-            name: mac
-          - os: windows-latest
-            name: windows
-
+  build-windows:
+    runs-on: windows-latest
+    
     steps:
-    - uses: actions/checkout@v4
-
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-
+        
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pygame pyinstaller
-
-    - name: Build executable
+        
+    - name: Create assets directory structure
       run: |
-        pyinstaller --onefile --add-data "assets${SEPARATOR}assets" --name "Minesweeper-${{ matrix.name }}" runner.py
-      env:
-        SEPARATOR: ${{ runner.os == 'Windows' && ';' || ':' }}
-
-    - name: Upload executable
-      uses: actions/upload-artifact@v4
+        mkdir -p assets/fonts
+        mkdir -p assets/images
+        
+    - name: Download required assets
+      run: |
+        # Download OpenSans font (or use a system font alternative)
+        curl -L -o "assets/fonts/OpenSans-Regular.ttf" "https://github.com/google/fonts/raw/main/apache/opensans/OpenSans-Regular.ttf"
+        
+        # Create placeholder images (you should replace these with actual images)
+        python -c "
+import pygame
+pygame.init()
+# Create flag image
+flag_surf = pygame.Surface((32, 32))
+flag_surf.fill((255, 0, 0))  # Red flag
+pygame.image.save(flag_surf, 'assets/images/flag.png')
+# Create mine image  
+mine_surf = pygame.Surface((32, 32))
+mine_surf.fill((0, 0, 0))   # Black mine
+pygame.draw.circle(mine_surf, (64, 64, 64), (16, 16), 12)
+pygame.image.save(mine_surf, 'assets/images/mine.png')
+"
+        
+    - name: Build executable with PyInstaller
+      run: |
+        pyinstaller --name="Minesweeper" ^
+                    --onefile ^
+                    --windowed ^
+                    --add-data="assets;assets" ^
+                    --icon=assets/images/mine.png ^
+                    --distpath=dist ^
+                    --workpath=build ^
+                    --specpath=build ^
+                    --clean ^
+                    --noconfirm ^
+                    --optimize=2 ^
+                    paste-2.py
+                    
+    - name: Test executable
+      run: |
+        # Test that the exe was created and can run (briefly)
+        if (Test-Path "dist/Minesweeper.exe") {
+          Write-Output "✓ Executable created successfully"
+          # Quick test - run for 2 seconds then kill
+          $process = Start-Process -FilePath "dist/Minesweeper.exe" -PassThru
+          Start-Sleep -Seconds 2
+          if (!$process.HasExited) {
+            Stop-Process -Id $process.Id -Force
+            Write-Output "✓ Executable runs without immediate crashes"
+          }
+        } else {
+          Write-Error "✗ Executable not found"
+          exit 1
+        }
+        
+    - name: Upload executable as artifact
+      uses: actions/upload-artifact@v3
       with:
-        name: ${{ matrix.name }}
+        name: Minesweeper-Windows-Executable
         path: |
-          dist/Minesweeper-${{ matrix.name }}*
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    
-    steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      
-    - name: Create Release
+          dist/Minesweeper.exe
+        retention-days: 30
+        
+    - name: Create release on tag
+      if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          mac/Minesweeper-mac
-          windows/Minesweeper-windows.exe
-        body: |
-          ## Simple Minesweeper Executables
-          
-          Just download and run:
-          - **Mac (Apple Silicon)**: `Minesweeper-mac`
-          - **Windows**: `Minesweeper-windows.exe`
-          
-          No installation needed!
+          dist/Minesweeper.exe
+        draft: false
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-info:
+    runs-on: ubuntu-latest
+    needs: build-windows
+    if: always()
+    
+    steps:
+    - name: Build Summary
+      run: |
+        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **OS**: Windows Latest" >> $GITHUB_STEP_SUMMARY  
+        echo "- **Python**: 3.11" >> $GITHUB_STEP_SUMMARY
+        echo "- **Tool**: PyInstaller" >> $GITHUB_STEP_SUMMARY
+        echo "- **Output**: Single executable file" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "The Windows executable will be available as a downloadable artifact." >> $GITHUB_STEP_SUMMARY
