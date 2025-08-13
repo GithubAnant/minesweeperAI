@@ -38,7 +38,7 @@ jobs:
         pyinstaller --onefile --windowed --add-data "assets;assets" runner.py
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Minesweeper-exe
         path: dist/*.exe
