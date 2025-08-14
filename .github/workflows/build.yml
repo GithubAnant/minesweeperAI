@@ -1,4 +1,4 @@
-name: Build Windows Executable
+name: Build Windows Executable Updated
 on:
   push:
     branches: [main, master]
@@ -23,9 +23,7 @@ jobs:
     
     - name: Create assets
       run: |
-        mkdir assets\fonts
         mkdir assets\images
-        python -c "import requests; open('assets/fonts/OpenSans-Regular.ttf','wb').write(requests.get('https://github.com/google/fonts/raw/main/apache/opensans/OpenSans-Regular.ttf').content)"
     
     - name: Create placeholder images
       run: |

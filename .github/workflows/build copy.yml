@@ -1,4 +1,4 @@
-name: Build macOS Executable
+name: Build macOS Executable Updated
 
 on:
   push:
@@ -25,9 +25,7 @@ jobs:
 
       - name: Create assets
         run: |
-          mkdir -p assets/fonts
           mkdir -p assets/images
-          python -c "import requests; open('assets/fonts/OpenSans-Regular.ttf','wb').write(requests.get('https://github.com/google/fonts/raw/main/apache/opensans/OpenSans-Regular.ttf').content)"
 
       - name: Create placeholder images
         run: |
