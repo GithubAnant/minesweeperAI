@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Minesweeper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: white;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: black;
+        }
+
+        .game-container {
+            background: white;
+            padding: 30px;
+            border: 2px solid black;
+        }
+
+        .instructions {
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .instructions h1 {
+            font-size: 3em;
+            margin-bottom: 30px;
+            color: black;
+        }
+
+        .instructions ul {
+            list-style: none;
+            margin-bottom: 40px;
+        }
+
+        .instructions li {
+            margin: 15px 0;
+            font-size: 1.2em;
+            color: black;
+        }
+
+        .game-layout {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 40px);
+            grid-template-rows: repeat(8, 40px);
+            gap: 2px;
+            background: black;
+            padding: 10px;
+        }
+
+        .cell {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border: 2px solid black;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: black;
+        }
+
+        .cell:hover {
+            background: #f0f0f0;
+        }
+
+        .cell.revealed {
+            background: #e0e0e0;
+            cursor: default;
+        }
+
+        .cell.flagged {
+            background: black;
+            color: white;
+        }
+
+        .cell.mine {
+            background: black;
+            color: white;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 200px;
+        }
+
+        .button {
+            padding: 15px 25px;
+            background: white;
+            color: black;
+            border: 2px solid black;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .button:hover {
+            background: black;
+            color: white;
+        }
+
+        .button:active {
+            background: black;
+            color: white;
+        }
+
+        .status {
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: black;
+        }
+
+        .info {
+            background: white;
+            border: 2px solid black;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .info h3 {
+            margin-bottom: 10px;
+            color: black;
+        }
+
+        .info p {
+            font-size: 14px;
+            color: black;
+            margin-bottom: 5px;
+        }
+
+        .number-1 { color: black; }
+        .number-2 { color: black; }
+        .number-3 { color: black; }
+        .number-4 { color: black; }
+        .number-5 { color: black; }
+        .number-6 { color: black; }
+        .number-7 { color: black; }
+        .number-8 { color: black; }
+
+        @media (max-width: 768px) {
+            .game-layout {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .controls {
+                min-width: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div id="instructions" class="instructions">
+            <h1>AI Minesweeper</h1>
+            <ul>
+                <li>Left-click a cell to reveal it</li>
+                <li>Right-click a cell to flag it as a mine</li>
+                <li>Use AI to make smart moves</li>
+                <li>Flag all mines to win!</li>
+            </ul>
+            <button class="button" onclick="startGame()">Start Game</button>
+        </div>
+
+        <div id="game" class="game-layout" style="display: none;">
+            <div>
+                <div id="status" class="status"></div>
+                <div id="board" class="board"></div>
+            </div>
+            
+            <div class="controls">
+                <button class="button" onclick="aiMove()">AI Move</button>
+                <button class="button" onclick="resetGame()">Reset Game</button>
+                
+                <div class="info">
+                    <h3>Game Stats</h3>
+                    <p>Moves Made: <span id="moves">0</span></p>
+                    <p>Flags: <span id="flags">0</span>/8</p>
+                    <p>AI Knowledge: <span id="knowledge">0</span> sentences</p>
+                </div>
+
+                <div class="info">
+                    <h3>Controls</h3>
+                    <p>Left Click: Reveal cell</p>
+                    <p>Right Click: Toggle flag</p>
+                    <p>AI Move: Let AI make a move</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game constants
+        const HEIGHT = 8;
+        const WIDTH = 8;
+        const MINES_COUNT = 8;
+
+        // Game state
+        let game = null;
+        let ai = null;
+        let revealed = new Set();
+        let flags = new Set();
+        let lost = false;
+        let won = false;
+
+        // Minesweeper game class
+        class Minesweeper {
+            constructor(height = 8, width = 8, mines = 8) {
+                this.height = height;
+                this.width = width;
+                this.mines = new Set();
+                this.board = [];
+
+                // Initialize empty board
+                for (let i = 0; i < this.height; i++) {
+                    const row = [];
+                    for (let j = 0; j < this.width; j++) {
+                        row.push(false);
+                    }
+                    this.board.push(row);
+                }
+
+                // Place mines randomly
+                while (this.mines.size < mines) {
+                    const i = Math.floor(Math.random() * height);
+                    const j = Math.floor(Math.random() * width);
+                    if (!this.board[i][j]) {
+                        this.mines.add(`${i},${j}`);
+                        this.board[i][j] = true;
+                    }
+                }
+            }
+
+            isMine(cell) {
+                const [i, j] = cell;
+                return this.board[i][j];
+            }
+
+            nearbyMines(cell) {
+                const [i, j] = cell;
+                let count = 0;
+
+                for (let di = -1; di <= 1; di++) {
+                    for (let dj = -1; dj <= 1; dj++) {
+                        if (di === 0 && dj === 0) continue;
+
+                        const ni = i + di;
+                        const nj = j + dj;
+
+                        if (ni >= 0 && ni < this.height && nj >= 0 && nj < this.width) {
+                            if (this.board[ni][nj]) {
+                                count++;
+                            }
+                        }
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        // Sentence class for AI logic
+        class Sentence {
+            constructor(cells, count) {
+                this.cells = new Set(cells.map(cell => `${cell[0]},${cell[1]}`));
+                this.count = count;
+            }
+
+            knownMines() {
+                if (this.cells.size === this.count && this.count > 0) {
+                    return new Set([...this.cells]);
+                }
+                return new Set();
+            }
+
+            knownSafes() {
+                if (this.count === 0) {
+                    return new Set([...this.cells]);
+                }
+                return new Set();
+            }
+
+            markMine(cell) {
+                const cellStr = `${cell[0]},${cell[1]}`;
+                if (this.cells.has(cellStr)) {
+                    this.count--;
+                    this.cells.delete(cellStr);
+                }
+            }
+
+            markSafe(cell) {
+                const cellStr = `${cell[0]},${cell[1]}`;
+                if (this.cells.has(cellStr)) {
+                    this.cells.delete(cellStr);
+                }
+            }
+
+            equals(other) {
+                return this.cells.size === other.cells.size &&
+                       [...this.cells].every(cell => other.cells.has(cell)) &&
+                       this.count === other.count;
+            }
+        }
+
+        // AI player class
+        class MinesweeperAI {
+            constructor(height = 8, width = 8) {
+                this.height = height;
+                this.width = width;
+                this.movesMade = new Set();
+                this.mines = new Set();
+                this.safes = new Set();
+                this.knowledge = [];
+            }
+
+            markMine(cell) {
+                const cellStr = `${cell[0]},${cell[1]}`;
+                this.mines.add(cellStr);
+                for (const sentence of this.knowledge) {
+                    sentence.markMine(cell);
+                }
+            }
+
+            markSafe(cell) {
+                const cellStr = `${cell[0]},${cell[1]}`;
+                this.safes.add(cellStr);
+                for (const sentence of this.knowledge) {
+                    sentence.markSafe(cell);
+                }
+            }
+
+            addKnowledge(cell, count) {
+                const [i, j] = cell;
+                const cellStr = `${i},${j}`;
+                
+                // Mark move as made and cell as safe
+                this.movesMade.add(cellStr);
+                this.markSafe(cell);
+
+                // Get neighbors
+                const neighbors = [];
+                for (let di = -1; di <= 1; di++) {
+                    for (let dj = -1; dj <= 1; dj++) {
+                        if (di === 0 && dj === 0) continue;
+                        
+                        const ni = i + di;
+                        const nj = j + dj;
+                        
+                        if (ni >= 0 && ni < this.height && nj >= 0 && nj < this.width) {
+                            neighbors.push([ni, nj]);
+                        }
+                    }
+                }
+
+                // Create new sentence
+                const newCells = [];
+                let newCount = count;
+
+                for (const neighbor of neighbors) {
+                    const neighborStr = `${neighbor[0]},${neighbor[1]}`;
+                    if (this.mines.has(neighborStr)) {
+                        newCount--;
+                    } else if (!this.safes.has(neighborStr)) {
+                        newCells.push(neighbor);
+                    }
+                }
+
+                if (newCells.length > 0) {
+                    const newSentence = new Sentence(newCells, newCount);
+                    this.knowledge.push(newSentence);
+                }
+
+                this.updateKnowledge();
+                this.inferNewSentences();
+            }
+
+            updateKnowledge() {
+                let changed = true;
+                while (changed) {
+                    changed = false;
+
+                    for (const sentence of [...this.knowledge]) {
+                        // Check for definitive mines
+                        const mines = sentence.knownMines();
+                        for (const mineStr of mines) {
+                            const [i, j] = mineStr.split(',').map(Number);
+                            if (!this.mines.has(mineStr)) {
+                                this.markMine([i, j]);
+                                changed = true;
+                            }
+                        }
+
+                        // Check for definitive safes
+                        const safes = sentence.knownSafes();
+                        for (const safeStr of safes) {
+                            const [i, j] = safeStr.split(',').map(Number);
+                            if (!this.safes.has(safeStr)) {
+                                this.markSafe([i, j]);
+                                changed = true;
+                            }
+                        }
+                    }
+
+                    // Remove empty sentences
+                    this.knowledge = this.knowledge.filter(s => s.cells.size > 0);
+                }
+            }
+
+            inferNewSentences() {
+                const newSentences = [];
+
+                for (let i = 0; i < this.knowledge.length; i++) {
+                    for (let j = i + 1; j < this.knowledge.length; j++) {
+                        const sentence1 = this.knowledge[i];
+                        const sentence2 = this.knowledge[j];
+
+                        // Check if sentence1 is subset of sentence2
+                        if (this.isSubset(sentence1.cells, sentence2.cells) && sentence1.cells.size !== sentence2.cells.size) {
+                            const newCells = [...sentence2.cells].filter(cell => !sentence1.cells.has(cell));
+                            const newCount = sentence2.count - sentence1.count;
+                            
+                            if (newCount >= 0 && newCells.length > 0) {
+                                const newSentence = new Sentence(newCells.map(cellStr => {
+                                    const [i, j] = cellStr.split(',').map(Number);
+                                    return [i, j];
+                                }), newCount);
+                                
+                                if (!this.knowledge.some(s => s.equals(newSentence)) && 
+                                    !newSentences.some(s => s.equals(newSentence))) {
+                                    newSentences.push(newSentence);
+                                }
+                            }
+                        }
+
+                        // Check if sentence2 is subset of sentence1
+                        if (this.isSubset(sentence2.cells, sentence1.cells) && sentence2.cells.size !== sentence1.cells.size) {
+                            const newCells = [...sentence1.cells].filter(cell => !sentence2.cells.has(cell));
+                            const newCount = sentence1.count - sentence2.count;
+                            
+                            if (newCount >= 0 && newCells.length > 0) {
+                                const newSentence = new Sentence(newCells.map(cellStr => {
+                                    const [i, j] = cellStr.split(',').map(Number);
+                                    return [i, j];
+                                }), newCount);
+                                
+                                if (!this.knowledge.some(s => s.equals(newSentence)) && 
+                                    !newSentences.some(s => s.equals(newSentence))) {
+                                    newSentences.push(newSentence);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                this.knowledge.push(...newSentences);
+            }
+
+            isSubset(set1, set2) {
+                return [...set1].every(item => set2.has(item));
+            }
+
+            makeSafeMove() {
+                for (const safeStr of this.safes) {
+                    if (!this.movesMade.has(safeStr)) {
+                        const [i, j] = safeStr.split(',').map(Number);
+                        return [i, j];
+                    }
+                }
+                return null;
+            }
+
+            makeRandomMove() {
+                const possibleMoves = [];
+                
+                for (let i = 0; i < this.height; i++) {
+                    for (let j = 0; j < this.width; j++) {
+                        const cellStr = `${i},${j}`;
+                        if (!this.movesMade.has(cellStr) && !this.mines.has(cellStr)) {
+                            possibleMoves.push([i, j]);
+                        }
+                    }
+                }
+
+                if (possibleMoves.length > 0) {
+                    return possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                }
+                return null;
+            }
+        }
+
+        function startGame() {
+            document.getElementById('instructions').style.display = 'none';
+            document.getElementById('game').style.display = 'flex';
+            
+            initGame();
+            renderBoard();
+            updateStatus();
+        }
+
+        function initGame() {
+            game = new Minesweeper(HEIGHT, WIDTH, MINES_COUNT);
+            ai = new MinesweeperAI(HEIGHT, WIDTH);
+            revealed = new Set();
+            flags = new Set();
+            lost = false;
+            won = false;
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+
+            for (let i = 0; i < HEIGHT; i++) {
+                for (let j = 0; j < WIDTH; j++) {
+                    const cell = document.createElement('button');
+                    cell.className = 'cell';
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+
+                    const cellKey = `${i},${j}`;
+
+                    if (lost && game.isMine([i, j])) {
+                        cell.classList.add('mine');
+                        cell.textContent = '*';
+                    } else if (flags.has(cellKey)) {
+                        cell.classList.add('flagged');
+                        cell.textContent = 'F';
+                    } else if (revealed.has(cellKey)) {
+                        cell.classList.add('revealed');
+                        const nearbyCount = game.nearbyMines([i, j]);
+                        if (nearbyCount > 0) {
+                            cell.textContent = nearbyCount;
+                            cell.classList.add(`number-${nearbyCount}`);
+                        }
+                    }
+
+                    cell.addEventListener('click', (e) => handleCellClick(e, i, j));
+                    cell.addEventListener('contextmenu', (e) => handleRightClick(e, i, j));
+
+                    board.appendChild(cell);
+                }
+            }
+        }
+
+        function handleCellClick(e, i, j) {
+            e.preventDefault();
+            if (lost || won) return;
+
+            const cellKey = `${i},${j}`;
+            if (flags.has(cellKey) || revealed.has(cellKey)) return;
+
+            makeMove([i, j]);
+        }
+
+        function handleRightClick(e, i, j) {
+            e.preventDefault();
+            if (lost || won) return;
+
+            const cellKey = `${i},${j}`;
+            if (revealed.has(cellKey)) return;
+
+            if (flags.has(cellKey)) {
+                flags.delete(cellKey);
+            } else {
+                flags.add(cellKey);
+            }
+
+            renderBoard();
+            updateStatus();
+        }
+
+        function makeMove(cell) {
+            const [i, j] = cell;
+            const cellKey = `${i},${j}`;
+
+            if (game.isMine(cell)) {
+                lost = true;
+            } else {
+                revealed.add(cellKey);
+                const nearbyCount = game.nearbyMines(cell);
+                ai.addKnowledge(cell, nearbyCount);
+            }
+
+            checkWin();
+            renderBoard();
+            updateStatus();
+        }
+
+        function aiMove() {
+            if (lost || won) return;
+
+            let move = ai.makeSafeMove();
+            if (move === null) {
+                move = ai.makeRandomMove();
+                if (move === null) {
+                    // No moves left, flag all AI-known mines
+                    for (const mineStr of ai.mines) {
+                        flags.add(mineStr);
+                    }
+                    renderBoard();
+                    updateStatus();
+                    return;
+                }
+            }
+
+            makeMove(move);
+        }
+
+        function resetGame() {
+            initGame();
+            renderBoard();
+            updateStatus();
+        }
+
+        function checkWin() {
+            if (lost) return;
+
+            // Check if all non-mine cells are revealed
+            let nonMineRevealed = 0;
+            for (let i = 0; i < HEIGHT; i++) {
+                for (let j = 0; j < WIDTH; j++) {
+                    const cellKey = `${i},${j}`;
+                    if (!game.isMine([i, j]) && revealed.has(cellKey)) {
+                        nonMineRevealed++;
+                    }
+                }
+            }
+
+            if (nonMineRevealed === HEIGHT * WIDTH - MINES_COUNT) {
+                won = true;
+                // Auto-flag remaining mines
+                for (const mineStr of game.mines) {
+                    flags.add(mineStr);
+                }
+            }
+        }
+
+        function updateStatus() {
+            const status = document.getElementById('status');
+            const movesEl = document.getElementById('moves');
+            const flagsEl = document.getElementById('flags');
+            const knowledgeEl = document.getElementById('knowledge');
+
+            if (lost) {
+                status.textContent = 'Game Over!';
+            } else if (won) {
+                status.textContent = 'You Win!';
+            } else {
+                status.textContent = 'Playing...';
+            }
+
+            movesEl.textContent = revealed.size;
+            flagsEl.textContent = flags.size;
+            knowledgeEl.textContent = ai ? ai.knowledge.length : 0;
+        }
+    </script>
+</body>
+</html>
