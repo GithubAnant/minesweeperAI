@@ -23,13 +23,10 @@ jobs:
         run: |
           pip install pygame pyinstaller requests
 
-      - name: Create assets
+      - name: Verify assets exist
         run: |
-          mkdir -p assets/images
-
-      - name: Create placeholder images
-        run: |
-          python -c "import pygame; pygame.init(); s=pygame.Surface((32,32)); s.fill((255,0,0)); pygame.image.save(s,'assets/images/flag.png'); s.fill((0,0,0)); pygame.image.save(s,'assets/images/mine.png')"
+          ls -la assets/
+          ls -la assets/images/
 
       - name: Build app
         run: |
